@@ -1,0 +1,80 @@
+#include <Otto.h>
+#define PernaEsq 2
+#define PernaDir 3
+#define PeEsq 4
+#define PeDir 5
+#define Buzzer 13
+#define Trigger 8
+#define Echo 9
+
+Otto Otto;
+unsigned long ultimaManobra = 0;
+bool segundaManobraFeita = false;
+bool roboParado = false;
+
+long ultrasound(){
+  long duration, distance;
+  digitalWrite(Trigger, LOW);
+  delayMicroseconds(2);
+  digitalWrite(Trigger, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(Trigger, LOW);
+  duration = pulseIn(Echo, HIGH);
+  distance = duration / 58;
+  return distance;
+}
+
+void beep(int vezes){
+  for(int i = 0; i < vezes; i++){
+    digitalWrite(Buzzer, HIGH);
+    delay(200);
+    digitalWrite(Buzzer, LOW);
+    delay(200);
+  }
+}
+
+void setup() {
+  Otto.init(PernaEsq, PernaDir, PeEsq, PeDir, true, Buzzer);
+  pinMode(Trigger, OUTPUT);
+  pinMode(Echo, INPUT);
+  pinMode(Buzzer, OUTPUT);
+  Otto.swing(2, 1000, 20);
+  Otto.shakeLeg(1, 2000, -1);
+}
+
+void loop(){
+  if (roboParado) return;
+
+  long dist = ultrasound();
+
+  if (dist <= 15) {
+    unsigned long agora = millis();
+
+    if (!segundaManobraFeita) {
+      if (ultimaManobra == 0 || (agora - ultimaManobra) > 5000) {
+        // Primeira manobra
+        Otto.walk(1, 1000, -1); // 1 passo para trás
+        Otto.turn(2, 1000, 1); // Vira por 2 segundos para direita
+        beep(1);
+        ultimaManobra = millis();
+      } else {
+        // Segunda manobra
+        Otto.walk(2, 1000, -1); // 2 passos para trás
+        Otto.turn(4, 1000, -1); // Vira por 4 segundos para o lado oposto
+        ultimaManobra = millis();
+        segundaManobraFeita = true;
+      }
+    } else {
+      // Verifica se o obstáculo foi detectado em menos de 4 segundos após a segunda manobra
+      if ((agora - ultimaManobra) < 4000) {
+        beep(3); // Beep 3 vezes
+        roboParado = true; // Para o robô
+        return;
+      } else {
+        segundaManobraFeita = false; // Reseta o estado
+      }
+    }
+  }
+
+  Otto.walk(1, 1000, 1); // Continua andando
+}
