@@ -1,0 +1,86 @@
+#include <Otto.h>
+
+#define PernaEsq 2
+#define PernaDir 3
+#define PeEsq 4
+#define PeDir 5
+#define Buzzer 13
+#define Trigger 8
+#define Echo 9
+
+Otto Otto;
+
+unsigned long ultimaManobra = 0;
+bool segundaManobraFeita = false;
+
+long ultrasound() {
+  long duration, distance;
+  digitalWrite(Trigger, LOW);
+  delayMicroseconds(2);
+  digitalWrite(Trigger, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(Trigger, LOW);
+  duration = pulseIn(Echo, HIGH);
+  distance = duration / 58;
+  return distance;
+}
+
+void beep(int vezes) {
+  for (int i = 0; i < vezes; i++) {
+    digitalWrite(Buzzer, HIGH);
+    delay(200);
+    digitalWrite(Buzzer, LOW);
+    delay(200);
+  }
+}
+
+void setup() {
+  Otto.init(PernaEsq, PernaDir, PeEsq, PeDir, true, Buzzer);
+  pinMode(Trigger, OUTPUT);
+  pinMode(Echo, INPUT);
+  pinMode(Buzzer, OUTPUT);
+  Otto.swing(2, 1500, 20);
+}
+
+void loop() {
+  long dist = ultrasound();
+
+  if (dist <= 15) {
+    unsigned long agora = millis();
+
+    if (!segundaManobraFeita) {
+      if (ultimaManobra == 0 || (agora - ultimaManobra) > 5000) {
+        // Primeira manobra
+        Otto.walk(1, 1500, -1);  // 1 passo para trás
+        Otto.turn(2, 1500, 1);   // Vira por 2 segundos para direita
+        beep(1);
+        ultimaManobra = millis();
+      } else {
+        // Segunda manobra
+        Otto.walk(2, 1500, -1);  // 2 passos para trás
+        Otto.turn(4, 1500, -1);  // Vira por 4 segundos para o lado oposto
+        ultimaManobra = millis();
+        segundaManobraFeita = true;
+      }
+    } else {
+      // Verifica se obstáculo persistiu após a segunda manobra
+      if ((agora - ultimaManobra) < 4000) {
+        beep(3);  // Alerta inicial
+        // Espera 10 segundos com 5 beeps (1 a cada 2s)
+        for (int i = 0; i < 3; i++) {
+          digitalWrite(Buzzer, HIGH);
+          delay(200);
+          digitalWrite(Buzzer, LOW);
+          delay(1500); // Total 2s entre beeps
+        }
+        segundaManobraFeita = false;
+        ultimaManobra = 0;
+        return;
+      } else {
+        segundaManobraFeita = false; // Reseta para nova tentativa
+      }
+    }
+  }
+
+  Otto.walk(1, 2000, 1); // Continua andando
+}
